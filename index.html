@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Time Boxer</title>
+<style>
+  :root {
+    --bg: #f4f4f5;
+    --panel: #ffffff;
+    --ink: #18181b;
+    --ink-soft: #52525b;
+    --line: #e4e4e7;
+    --grid: #ececee;
+    --accent: #4f46e5;
+    --now: #e11d48;
+    --shadow: 0 1px 3px rgba(0,0,0,.08), 0 8px 24px rgba(0,0,0,.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #09090b;
+      --panel: #18181b;
+      --ink: #fafafa;
+      --ink-soft: #a1a1aa;
+      --line: #27272a;
+      --grid: #202023;
+      --accent: #818cf8;
+      --now: #fb7185;
+      --shadow: 0 1px 3px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+    }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px 16px 60px;
+    gap: 20px;
+  }
+  header {
+    width: 100%;
+    max-width: 880px;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+  }
+  h1 { font-size: 20px; font-weight: 650; letter-spacing: -0.01em; }
+  header .hint { color: var(--ink-soft); font-size: 13px; }
+
+  .now-card {
+    width: 100%;
+    max-width: 880px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    padding: 16px 18px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    min-height: 92px;
+  }
+  .now-card .ring {
+    --p: 0;
+    width: 60px; height: 60px; flex: none;
+    border-radius: 50%;
+    background: conic-gradient(var(--accent) calc(var(--p) * 1%), var(--grid) 0);
+    display: grid; place-items: center;
+    position: relative;
+  }
+  .now-card .ring::after {
+    content: ""; position: absolute; inset: 6px;
+    border-radius: 50%; background: var(--panel);
+  }
+  .now-card .ring span {
+    position: relative; z-index: 1;
+    font-size: 12px; font-weight: 650; font-variant-numeric: tabular-nums;
+  }
+  .now-card .body { flex: 1; min-width: 0; }
+  .now-card .label {
+    font-size: 17px; font-weight: 600;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .now-card .sub { color: var(--ink-soft); font-size: 13px; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .now-card .idle { color: var(--ink-soft); font-style: italic; }
+  .now-card button {
+    flex: none;
+    border: 1px solid var(--line);
+    background: transparent;
+    color: var(--ink-soft);
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .now-card button:hover { color: var(--ink); border-color: var(--ink-soft); }
+  .now-card button.armed { color: var(--accent); border-color: var(--accent); }
+
+  .grid-wrap {
+    width: 100%;
+    max-width: 880px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    padding: 8px 12px 12px;
+  }
+  .toolbar {
+    display: flex; align-items: center; gap: 8px 12px;
+    flex-wrap: wrap;
+    padding: 8px 4px 12px;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 8px;
+  }
+  .swatches { display: flex; gap: 6px; }
+  .swatch {
+    width: 22px; height: 22px; border-radius: 6px;
+    border: 2px solid transparent; cursor: pointer;
+  }
+  .swatch.active { border-color: var(--ink); }
+  .toolbar .spacer { flex: 1; }
+  .toolbar button {
+    border: 1px solid var(--line); background: transparent; color: var(--ink-soft);
+    border-radius: 8px; padding: 5px 10px; font-size: 12px; cursor: pointer;
+  }
+  .toolbar button:hover { color: var(--ink); }
+
+  .timeline { position: relative; user-select: none; }
+  .row {
+    display: grid;
+    grid-template-columns: 56px 1fr;
+    align-items: stretch;
+    height: 26px;
+    position: relative;
+  }
+  .row .time {
+    font-size: 11px; color: var(--ink-soft);
+    text-align: right; padding-right: 10px;
+    transform: translateY(-7px);
+    font-variant-numeric: tabular-nums;
+  }
+  .row .time.minor { visibility: hidden; }
+  .row .cell {
+    border-top: 1px solid var(--grid);
+    position: relative;
+    cursor: crosshair;
+  }
+  .row:last-child .cell { border-bottom: 1px solid var(--grid); }
+  .row .cell.hour { border-top-color: var(--line); }
+
+  .block {
+    position: absolute;
+    left: 56px; right: 0;
+    border-radius: 7px;
+    padding: 3px 9px;
+    overflow: hidden;
+    cursor: pointer;
+    color: #fff;
+    display: flex; flex-direction: column; justify-content: center;
+    box-shadow: 0 1px 2px rgba(0,0,0,.15);
+    transition: filter .12s;
+  }
+  .block:hover { filter: brightness(1.06); }
+  .block .b-label {
+    font-size: 12.5px; font-weight: 600;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .block .b-time { font-size: 10.5px; opacity: .85; font-variant-numeric: tabular-nums; }
+  .block.tiny { padding: 1px 9px; }
+  .block.tiny .b-time { display: none; }
+  .block.current { outline: 2px solid var(--ink); outline-offset: 1px; }
+  .block .b-del {
+    position: absolute; top: 2px; right: 4px;
+    font-size: 14px; line-height: 1; opacity: 0;
+    background: rgba(0,0,0,.25); border: 0; color: #fff;
+    border-radius: 4px; cursor: pointer; padding: 1px 5px;
+  }
+  .block:hover .b-del { opacity: 1; }
+
+  .now-line {
+    position: absolute; left: 46px; right: 0; height: 0;
+    border-top: 2px solid var(--now);
+    pointer-events: none; z-index: 5;
+  }
+  .now-line::before {
+    content: ""; position: absolute; left: 0; top: -4px;
+    width: 7px; height: 7px; border-radius: 50%; background: var(--now);
+  }
+
+  .drag-ghost {
+    position: absolute; left: 56px; right: 0;
+    background: var(--accent); opacity: .25;
+    border-radius: 7px; pointer-events: none; z-index: 4;
+  }
+
+  footer { color: var(--ink-soft); font-size: 12px; max-width: 880px; text-align: center; }
+
+  dialog {
+    border: 1px solid var(--line); border-radius: 14px;
+    padding: 0; background: var(--panel); color: var(--ink);
+    box-shadow: var(--shadow); width: min(360px, 92vw);
+    position: fixed; top: 50%; left: 50%;
+    transform: translate(-50%, -50%); margin: 0;
+  }
+  dialog::backdrop { background: rgba(0,0,0,.35); }
+  .dlg-body { padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+  .dlg-body h3 { font-size: 15px; }
+  .dlg-body input[type=text] {
+    width: 100%; padding: 9px 11px; font-size: 14px;
+    border: 1px solid var(--line); border-radius: 8px;
+    background: var(--bg); color: var(--ink);
+  }
+  .dlg-swatches { display: flex; gap: 8px; }
+  .dlg-swatches .swatch { width: 26px; height: 26px; }
+  .dlg-actions { display: flex; justify-content: flex-end; gap: 8px; }
+  .dlg-actions button {
+    border: 1px solid var(--line); background: transparent; color: var(--ink);
+    border-radius: 8px; padding: 7px 14px; font-size: 13px; cursor: pointer;
+  }
+  .dlg-actions button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Time Boxer</h1>
+  <span class="hint">Drag on the grid to block time · click a block to label it</span>
+</header>
+
+<div class="now-card" id="nowCard">
+  <div class="ring" id="ring"><span id="ringPct">--</span></div>
+  <div class="body">
+    <div class="label idle" id="nowLabel">Nothing scheduled right now</div>
+    <div class="sub" id="nowSub">Paint a block below to get started</div>
+  </div>
+  <button id="chimeBtn" title="Toggle end-of-block chime">🔔 Chime: on</button>
+</div>
+
+<div class="grid-wrap">
+  <div class="toolbar">
+    <div class="swatches" id="swatches"></div>
+    <div class="spacer"></div>
+    <button id="todayBtn">Jump to now</button>
+    <button id="icsBtn" title="Download an .ics file to import into Apple Calendar / Google Calendar">Add to Calendar</button>
+    <button id="clearBtn">Clear day</button>
+  </div>
+  <div class="timeline" id="timeline"></div>
+</div>
+
+<footer>
+  Saved automatically in this browser. Day runs 6:00&nbsp;AM&nbsp;–&nbsp;midnight in 15-minute slots.
+</footer>
+
+<dialog id="editDlg">
+  <form method="dialog" class="dlg-body" id="editForm">
+    <h3 id="dlgTitle">Label this block</h3>
+    <input type="text" id="dlgInput" placeholder="What is this block for?" autocomplete="off" maxlength="80">
+    <div class="dlg-swatches" id="dlgSwatches"></div>
+    <div class="dlg-actions">
+      <button type="button" id="dlgDelete">Delete</button>
+      <button type="submit" class="primary">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+(function () {
+  "use strict";
+
+  var START_HOUR = 6;          // 6:00 AM
+  var END_HOUR = 24;           // midnight
+  var SLOT_MIN = 15;
+  var ROW_PX = 26;
+  var SLOTS = (END_HOUR - START_HOUR) * 60 / SLOT_MIN;
+  var STORE_KEY = "timeBoxer.v1";
+
+  var PALETTE = [
+    { name: "indigo", c: "#4f46e5" },
+    { name: "teal",   c: "#0d9488" },
+    { name: "amber",  c: "#d97706" },
+    { name: "rose",   c: "#e11d48" },
+    { name: "slate",  c: "#475569" },
+    { name: "violet", c: "#7c3aed" }
+  ];
+
+  var state = load();               // { blocks: [ {id, start, end, label, color} ] }, minutes from midnight
+  var activeColor = PALETTE[0].c;
+  var chimeOn = state.chimeOn !== false;
+  var lastChimedId = null;
+
+  var timeline = document.getElementById("timeline");
+  var nowLabel = document.getElementById("nowLabel");
+  var nowSub = document.getElementById("nowSub");
+  var ring = document.getElementById("ring");
+  var ringPct = document.getElementById("ringPct");
+  var chimeBtn = document.getElementById("chimeBtn");
+
+  // ---------- persistence ----------
+  function load() {
+    try {
+      var raw = localStorage.getItem(STORE_KEY);
+      if (raw) {
+        var p = JSON.parse(raw);
+        if (p && Array.isArray(p.blocks)) return p;
+      }
+    } catch (e) {}
+    return { blocks: [], chimeOn: true };
+  }
+  function save() {
+    state.chimeOn = chimeOn;
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) {}
+  }
+
+  // ---------- helpers ----------
+  function fmt(min) {
+    var h = Math.floor(min / 60) % 24;
+    var m = min % 60;
+    var ap = h < 12 ? "AM" : "PM";
+    var hh = h % 12; if (hh === 0) hh = 12;
+    return hh + ":" + (m < 10 ? "0" + m : m) + " " + ap;
+  }
+  function fmtDur(min) {
+    var h = Math.floor(min / 60), m = min % 60;
+    if (h && m) return h + "h " + m + "m";
+    if (h) return h + "h";
+    return m + "m";
+  }
+  function slotToMin(slot) { return START_HOUR * 60 + slot * SLOT_MIN; }
+  function nowMinutes() {
+    var d = new Date();
+    return d.getHours() * 60 + d.getMinutes() + d.getSeconds() / 60;
+  }
+  function overlaps(a1, a2, b1, b2) { return a1 < b2 && b1 < a2; }
+  function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+
+  // ---------- build static grid ----------
+  function buildGrid() {
+    var frag = document.createDocumentFragment();
+    for (var s = 0; s < SLOTS; s++) {
+      var min = slotToMin(s);
+      var onHour = min % 60 === 0;
+      var row = document.createElement("div");
+      row.className = "row";
+
+      var t = document.createElement("div");
+      t.className = "time" + (onHour ? "" : " minor");
+      t.textContent = onHour ? fmt(min).replace(":00", "") : "";
+      row.appendChild(t);
+
+      var cell = document.createElement("div");
+      cell.className = "cell" + (onHour ? " hour" : "");
+      cell.dataset.slot = s;
+      row.appendChild(cell);
+
+      frag.appendChild(row);
+    }
+    timeline.appendChild(frag);
+
+    var ghost = document.createElement("div");
+    ghost.className = "drag-ghost";
+    ghost.id = "ghost";
+    ghost.style.display = "none";
+    timeline.appendChild(ghost);
+
+    var nl = document.createElement("div");
+    nl.className = "now-line";
+    nl.id = "nowLine";
+    timeline.appendChild(nl);
+  }
+
+  // ---------- render blocks ----------
+  function renderBlocks() {
+    var old = timeline.querySelectorAll(".block");
+    for (var i = 0; i < old.length; i++) old[i].remove();
+
+    var curId = currentBlock() ? currentBlock().id : null;
+
+    state.blocks.forEach(function (b) {
+      var el = document.createElement("div");
+      var durMin = b.end - b.start;
+      el.className = "block" + (durMin <= SLOT_MIN ? " tiny" : "") + (b.id === curId ? " current" : "");
+      el.style.top = ((b.start - START_HOUR * 60) / SLOT_MIN * ROW_PX) + "px";
+      el.style.height = (durMin / SLOT_MIN * ROW_PX - 2) + "px";
+      el.style.background = b.color;
+
+      var lab = document.createElement("div");
+      lab.className = "b-label";
+      lab.textContent = b.label || "Untitled block";
+      el.appendChild(lab);
+
+      var tm = document.createElement("div");
+      tm.className = "b-time";
+      tm.textContent = fmt(b.start) + " – " + fmt(b.end) + "  ·  " + fmtDur(durMin);
+      el.appendChild(tm);
+
+      var del = document.createElement("button");
+      del.className = "b-del";
+      del.textContent = "×";
+      del.title = "Delete block";
+      del.addEventListener("click", function (ev) {
+        ev.stopPropagation();
+        removeBlock(b.id);
+      });
+      el.appendChild(del);
+
+      el.addEventListener("click", function () { openEditor(b.id); });
+      timeline.appendChild(el);
+    });
+  }
+
+  function removeBlock(id) {
+    state.blocks = state.blocks.filter(function (b) { return b.id !== id; });
+    save();
+    renderBlocks();
+    updateNow();
+  }
+
+  // ---------- drag to create ----------
+  var drag = null;
+  var ghost = null;
+
+  function slotFromEvent(e) {
+    var rect = timeline.getBoundingClientRect();
+    var y = e.clientY - rect.top;
+    var slot = Math.floor(y / ROW_PX);
+    return Math.max(0, Math.min(SLOTS - 1, slot));
+  }
+
+  timeline.addEventListener("pointerdown", function (e) {
+    if (e.target.closest(".block")) return;
+    if (e.button !== 0) return;
+    ghost = document.getElementById("ghost");
+    drag = { a: slotFromEvent(e), b: slotFromEvent(e) };
+    timeline.setPointerCapture(e.pointerId);
+    drawGhost();
+  });
+  timeline.addEventListener("pointermove", function (e) {
+    if (!drag) return;
+    drag.b = slotFromEvent(e);
+    drawGhost();
+  });
+  timeline.addEventListener("pointerup", function (e) {
+    if (!drag) return;
+    var lo = Math.min(drag.a, drag.b);
+    var hi = Math.max(drag.a, drag.b) + 1;      // inclusive end slot
+    var start = slotToMin(lo);
+    var end = slotToMin(hi);
+    drag = null;
+    ghost.style.display = "none";
+
+    var clash = state.blocks.some(function (b) { return overlaps(start, end, b.start, b.end); });
+    if (clash) { flashNoClash(); return; }
+
+    var block = { id: uid(), start: start, end: end, label: "", color: activeColor };
+    state.blocks.push(block);
+    state.blocks.sort(function (x, y) { return x.start - y.start; });
+    save();
+    renderBlocks();
+    updateNow();
+    openEditor(block.id);
+  });
+
+  function drawGhost() {
+    var lo = Math.min(drag.a, drag.b);
+    var hi = Math.max(drag.a, drag.b) + 1;
+    ghost.style.display = "block";
+    ghost.style.top = (lo * ROW_PX) + "px";
+    ghost.style.height = ((hi - lo) * ROW_PX - 2) + "px";
+  }
+
+  function flashNoClash() {
+    var g = document.getElementById("ghost");
+    g.style.display = "block";
+    g.style.background = "var(--now)";
+    setTimeout(function () {
+      g.style.display = "none";
+      g.style.background = "var(--accent)";
+    }, 220);
+  }
+
+  // ---------- editor dialog ----------
+  var dlg = document.getElementById("editDlg");
+  var dlgInput = document.getElementById("dlgInput");
+  var dlgSwatches = document.getElementById("dlgSwatches");
+  var editingId = null;
+
+  PALETTE.forEach(function (p) {
+    var s = document.createElement("div");
+    s.className = "swatch";
+    s.style.background = p.c;
+    s.dataset.c = p.c;
+    s.addEventListener("click", function () {
+      dlgSwatches.querySelectorAll(".swatch").forEach(function (x) { x.classList.remove("active"); });
+      s.classList.add("active");
+    });
+    dlgSwatches.appendChild(s);
+  });
+
+  function openEditor(id) {
+    var b = state.blocks.find(function (x) { return x.id === id; });
+    if (!b) return;
+    editingId = id;
+    document.getElementById("dlgTitle").textContent = fmt(b.start) + " – " + fmt(b.end);
+    dlgInput.value = b.label || "";
+    dlgSwatches.querySelectorAll(".swatch").forEach(function (x) {
+      x.classList.toggle("active", x.dataset.c === b.color);
+    });
+    dlg.showModal();
+    dlgInput.focus();
+    dlgInput.select();
+  }
+
+  document.getElementById("editForm").addEventListener("submit", function () {
+    var b = state.blocks.find(function (x) { return x.id === editingId; });
+    if (b) {
+      b.label = dlgInput.value.trim();
+      var act = dlgSwatches.querySelector(".swatch.active");
+      if (act) b.color = act.dataset.c;
+      save();
+      renderBlocks();
+      updateNow();
+    }
+    editingId = null;
+  });
+  document.getElementById("dlgDelete").addEventListener("click", function () {
+    if (editingId) removeBlock(editingId);
+    editingId = null;
+    dlg.close();
+  });
+
+  // ---------- toolbar ----------
+  var swatches = document.getElementById("swatches");
+  PALETTE.forEach(function (p, i) {
+    var s = document.createElement("div");
+    s.className = "swatch" + (i === 0 ? " active" : "");
+    s.style.background = p.c;
+    s.title = p.name;
+    s.addEventListener("click", function () {
+      swatches.querySelectorAll(".swatch").forEach(function (x) { x.classList.remove("active"); });
+      s.classList.add("active");
+      activeColor = p.c;
+    });
+    swatches.appendChild(s);
+  });
+
+  document.getElementById("clearBtn").addEventListener("click", function () {
+    if (!state.blocks.length) return;
+    if (confirm("Remove all blocks for the day?")) {
+      state.blocks = [];
+      save();
+      renderBlocks();
+      updateNow();
+    }
+  });
+  document.getElementById("todayBtn").addEventListener("click", function () {
+    var y = (nowMinutes() - START_HOUR * 60) / SLOT_MIN * ROW_PX;
+    window.scrollTo({ top: timeline.getBoundingClientRect().top + window.scrollY + y - window.innerHeight / 2, behavior: "smooth" });
+  });
+
+  // ---------- export to calendar (.ics) ----------
+  function pad(n) { return n < 10 ? "0" + n : "" + n; }
+  function icsStamp(date, min) {
+    // floating local time: YYYYMMDDTHHMMSS (no timezone -> shows as-is in any calendar)
+    var d = new Date(date);
+    d.setHours(0, 0, 0, 0);
+    d.setMinutes(min);
+    return d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) +
+           "T" + pad(d.getHours()) + pad(d.getMinutes()) + "00";
+  }
+  function icsEscape(s) {
+    return String(s).replace(/\\/g, "\\\\").replace(/;/g, "\\;")
+                    .replace(/,/g, "\\,").replace(/\n/g, "\\n");
+  }
+  function buildICS() {
+    var now = new Date();
+    var dtstamp = now.getUTCFullYear() + pad(now.getUTCMonth() + 1) + pad(now.getUTCDate()) +
+                  "T" + pad(now.getUTCHours()) + pad(now.getUTCMinutes()) + pad(now.getUTCSeconds()) + "Z";
+    var lines = [
+      "BEGIN:VCALENDAR",
+      "VERSION:2.0",
+      "PRODID:-//Time Boxer//EN",
+      "CALSCALE:GREGORIAN"
+    ];
+    state.blocks.forEach(function (b, i) {
+      lines.push(
+        "BEGIN:VEVENT",
+        "UID:timeboxer-" + now.getTime() + "-" + i + "@local",
+        "DTSTAMP:" + dtstamp,
+        "DTSTART:" + icsStamp(now, b.start),
+        "DTEND:" + icsStamp(now, b.end),
+        "SUMMARY:" + icsEscape(b.label || "Time block"),
+        "END:VEVENT"
+      );
+    });
+    lines.push("END:VCALENDAR");
+    return lines.join("\r\n");
+  }
+  document.getElementById("icsBtn").addEventListener("click", function () {
+    if (!state.blocks.length) { alert("Add some blocks first."); return; }
+    var blob = new Blob([buildICS()], { type: "text/calendar" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    var d = new Date();
+    a.href = url;
+    a.download = "time-boxer-" + d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) + ".ics";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  });
+
+  chimeBtn.addEventListener("click", function () {
+    chimeOn = !chimeOn;
+    chimeBtn.textContent = chimeOn ? "🔔 Chime: on" : "🔕 Chime: off";
+    chimeBtn.classList.toggle("armed", chimeOn);
+    save();
+    if (chimeOn) playChime();     // also unlocks audio on user gesture
+  });
+  chimeBtn.textContent = chimeOn ? "🔔 Chime: on" : "🔕 Chime: off";
+  chimeBtn.classList.toggle("armed", chimeOn);
+
+  // ---------- chime (WebAudio, no assets) ----------
+  var actx = null;
+  function playChime() {
+    try {
+      actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+      if (actx.state === "suspended") actx.resume();
+      var now = actx.currentTime;
+      [880, 1174.7, 1567.98].forEach(function (f, i) {
+        var o = actx.createOscillator();
+        var g = actx.createGain();
+        o.type = "sine";
+        o.frequency.value = f;
+        o.connect(g); g.connect(actx.destination);
+        var t = now + i * 0.14;
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.22, t + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.9);
+        o.start(t);
+        o.stop(t + 1);
+      });
+    } catch (e) {}
+  }
+
+  // ---------- current block + live loop ----------
+  function currentBlock() {
+    var m = nowMinutes();
+    return state.blocks.find(function (b) { return m >= b.start && m < b.end; }) || null;
+  }
+  function nextBlock() {
+    var m = nowMinutes();
+    var upcoming = state.blocks.filter(function (b) { return b.start > m; });
+    upcoming.sort(function (a, b) { return a.start - b.start; });
+    return upcoming[0] || null;
+  }
+
+  function updateNow() {
+    var m = nowMinutes();
+    var cur = currentBlock();
+
+    // now-line position
+    var nl = document.getElementById("nowLine");
+    if (m >= START_HOUR * 60 && m <= END_HOUR * 60) {
+      nl.style.display = "block";
+      nl.style.top = ((m - START_HOUR * 60) / SLOT_MIN * ROW_PX) + "px";
+    } else {
+      nl.style.display = "none";
+    }
+
+    if (cur) {
+      var total = cur.end - cur.start;
+      var done = m - cur.start;
+      var remain = cur.end - m;
+      var pct = Math.round(done / total * 100);
+      ring.style.setProperty("--p", pct);
+      ringPct.textContent = Math.ceil(remain) + "m";
+      nowLabel.className = "label";
+      nowLabel.textContent = cur.label || "Untitled block";
+      nowSub.textContent = fmt(cur.start) + " – " + fmt(cur.end) + "  ·  " + fmtDur(Math.ceil(remain)) + " left";
+
+      if (chimeOn && remain <= 0.05 && lastChimedId !== cur.id) {
+        lastChimedId = cur.id;
+        playChime();
+      }
+    } else {
+      ring.style.setProperty("--p", 0);
+      ringPct.textContent = "--";
+      var nxt = nextBlock();
+      nowLabel.className = "label idle";
+      if (nxt) {
+        var until = Math.ceil(nxt.start - m);
+        nowLabel.textContent = "Open until " + fmt(nxt.start);
+        nowSub.textContent = "Next: " + (nxt.label || "Untitled block") + " in " + fmtDur(until);
+      } else if (state.blocks.length) {
+        nowLabel.textContent = "Nothing scheduled right now";
+        nowSub.textContent = "No more blocks today";
+      } else {
+        nowLabel.textContent = "Nothing scheduled right now";
+        nowSub.textContent = "Paint a block below to get started";
+      }
+    }
+
+    // mark current block outline without full rerender when possible
+    var blocks = timeline.querySelectorAll(".block");
+    blocks.forEach(function (el) { el.classList.remove("current"); });
+    if (cur) {
+      var idx = state.blocks.indexOf(cur);
+      if (blocks[idx]) blocks[idx].classList.add("current");
+    }
+  }
+
+  // fire chime slightly before boundary check misses due to interval timing
+  function tick() {
+    updateNow();
+  }
+
+  // ---------- init ----------
+  buildGrid();
+  renderBlocks();
+  updateNow();
+  setInterval(tick, 1000);
+
+  // scroll near "now" on first load
+  window.requestAnimationFrame(function () {
+    var y = (nowMinutes() - START_HOUR * 60) / SLOT_MIN * ROW_PX;
+    if (y > window.innerHeight * 0.6) {
+      window.scrollTo(0, timeline.getBoundingClientRect().top + window.scrollY + y - window.innerHeight / 2);
+    }
+  });
+})();
+</script>
+</body>
+</html>
