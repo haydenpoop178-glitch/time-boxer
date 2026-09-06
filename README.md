@@ -18,7 +18,8 @@ open index.html
   label editor pops open automatically. Blocks can't overlap.
 - **Click a block** — rename it, recolor it, or delete it.
 - **Now card** (top) — shows the block you're in, a ring that fills as it elapses,
-  and minutes remaining. Falls back to "next block in 20m" when you're between blocks.
+  and minutes remaining. Between blocks it shows how long you're free and what's
+  coming up next.
 - **Red now-line** — tracks the current time across the grid.
 - **Chime** — a soft three-note tone plays when a block ends. Toggle with the
   bell button (also unlocks browser audio on first click).
